@@ -19,7 +19,7 @@ python3 run_thai_qa.py --bert_model bert-base-multilingual-cased \
 
 pandas DataFrame
 question_id | question | answer | paragraph | lang
---- | --- | --- | --- | --- | --- | ---
+--- | --- | --- | --- | ---
 int | str | str | str | thai or eng (str)
 
 Additional columns are fine but these columns are necessary.
