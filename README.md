@@ -1,3 +1,8 @@
+## Install
+```
+pip install pytorch-pretrained-bert pythainlp tensorboard tensorboardX
+```
+
 ## Training file format
 pandas DataFrame
 
