@@ -159,10 +159,10 @@ def read_thai_qa_examples(input_file, is_training):
                     logger.warning("Could not find answer: '%s' vs. '%s'",
                                     actual_text, cleaned_answer_text)
                     continue
-                else:
-                    start_position = -1
-                    end_position = -1
-                    orig_answer_text = ""
+            else:
+                start_position = -1
+                end_position = -1
+                # orig_answer_text = ""
 
         example = ThaiQAExample(
             qas_id=question_id,
