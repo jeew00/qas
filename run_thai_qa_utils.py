@@ -121,7 +121,7 @@ def read_thai_qa_examples(input_file, is_training):
                 start_position = char_to_word_offset[answer_offset]
                 end_position = char_to_word_offset[answer_offset + answer_length - 1]
 
-        elif entry['lang'] == 'eng':
+        elif entry['lang'] != 'thai':
             doc_tokens = []
             char_to_word_offset = []
             prev_is_whitespace = True
@@ -159,10 +159,6 @@ def read_thai_qa_examples(input_file, is_training):
                     logger.warning("Could not find answer: '%s' vs. '%s'",
                                     actual_text, cleaned_answer_text)
                     continue
-            else:
-                start_position = -1
-                end_position = -1
-                # orig_answer_text = ""
 
         example = ThaiQAExample(
             qas_id=question_id,
