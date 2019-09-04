@@ -112,7 +112,8 @@ def main():
     parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
     parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
     parser.add_argument('--checkpoint_dir', type=str, default='', help="Checkpoint directory used for prediction.")
-    parser.add_argument('--result_file', type=str, default='', help="Result files will be save in this directory.")
+    parser.add_argument('--checkpoint_filename', type=str, default='', help="Checkpoint binary filename used for prediction.")
+    parser.add_argument('--output_result_file', type=str, default='', help="Result files will be save in this directory.")
     args = parser.parse_args()
     print(args)
 
@@ -191,6 +192,7 @@ def main():
         if args.local_rank in [-1, 0]:
             tb_writer = SummaryWriter()
         # Prepare data loader
+        logger.info("***** Preparing Data *****")
         train_examples = read_thai_qa_examples(
             input_file=args.train_file, is_training=True)
         cached_train_features_file = args.train_file+'_{0}_{1}_{2}_{3}_cache'.format(
@@ -227,6 +229,8 @@ def main():
         num_train_optimization_steps = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
         # if args.local_rank != -1:
         #     num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
+
+        logger.info("***** Finished Preparing Data *****")
 
         # Prepare optimizer
         param_optimizer = list(model.named_parameters())
@@ -273,6 +277,7 @@ def main():
         logger.info("  Num steps = %d", num_train_optimization_steps)
 
         model.train()
+        lowest_training_loss = float('inf')
         for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration", disable=args.local_rank not in [-1, 0])):
                 if n_gpu == 1:
@@ -297,10 +302,24 @@ def main():
                             param_group['lr'] = lr_this_step
                     optimizer.step()
                     optimizer.zero_grad()
+
                     global_step += 1
                     if args.local_rank in [-1, 0]:
                         tb_writer.add_scalar('lr', optimizer.get_lr()[0], global_step)
                         tb_writer.add_scalar('loss', loss.item(), global_step)
+
+                # Save the best model aka lowest training loss in this case
+                loss_scalar = loss.item()
+                if loss_scalar < lowest_training_loss:
+                    lowest_training_loss = loss_scalar
+                    model_to_save = model.module if hasattr(model, 'module') else model
+                    output_model_file = os.path.join(args.output_dir, f"best_weight.bin")
+                    torch.save(model_to_save.state_dict(), output_model_file)
+
+            # Save the model every epoch
+            model_to_save = model.module if hasattr(model, 'module') else model
+            output_model_file = os.path.join(args.output_dir, f"epoch_{epoch}.bin")
+            torch.save(model_to_save.state_dict(), output_model_file)
 
     if args.do_train and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Save a trained model, configuration and tokenizer
@@ -314,10 +333,6 @@ def main():
         model_to_save.config.to_json_file(output_config_file)
         tokenizer.save_vocabulary(args.output_dir)
 
-        # Load a trained model and vocabulary that you have fine-tuned
-        model = BertForQuestionAnswering.from_pretrained(args.output_dir)
-        tokenizer = BertTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case)
-
         # Good practice: save your training arguments together with the trained model
         output_args_file = os.path.join(args.output_dir, 'training_args.bin')
         torch.save(args, output_args_file)
@@ -328,10 +343,11 @@ def main():
 
     if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
 
-        logger.info(f'Loading checkpoint from {args.checkpoint_dir}')
+        # Load checkpoint
+        logger.info(f'Loading checkpoint from {args.checkpoint_dir}/{args.checkpoint_filename}')
         config = BertConfig.from_json_file(f'{args.checkpoint_dir}/config.json')
         model = BertForQuestionAnswering(config)
-        state_dict = torch.load(f'{args.checkpoint_dir}/pytorch_model.bin')
+        state_dict = torch.load(f'{args.checkpoint_dir}/{args.checkpoint_filename}')
         model.load_state_dict(state_dict)
         tokenizer = BertTokenizer(f'{args.checkpoint_dir}/vocab.txt', do_lower_case=args.do_lower_case)
         model.to(device)
@@ -384,7 +400,7 @@ def main():
         # output_null_log_odds_file = os.path.join(args.output_dir, "null_odds.json")
         write_predictions(eval_examples, eval_features, all_results,
                           args.n_best_size, args.max_answer_length,
-                          args.do_lower_case, args.result_file,
+                          args.do_lower_case, args.output_result_file,
                           args.verbose_logging, args.null_score_diff_threshold, tokenizer)
 
 if __name__ == "__main__":

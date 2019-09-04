@@ -285,28 +285,28 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                     start_position = tok_start_position - doc_start + doc_offset
                     end_position = tok_end_position - doc_start + doc_offset
 
-            if example_index < 20:
-                logger.info("*** Example ***")
-                logger.info("unique_id: %s" % (unique_id))
-                logger.info("example_index: %s" % (example_index))
-                logger.info("doc_span_index: %s" % (doc_span_index))
-                logger.info("tokens: %s" % " ".join(tokens))
-                logger.info("token_to_orig_map: %s" % " ".join([
-                    "%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]))
-                logger.info("token_is_max_context: %s" % " ".join([
-                    "%d:%s" % (x, y) for (x, y) in token_is_max_context.items()
-                ]))
-                logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-                logger.info(
-                    "input_mask: %s" % " ".join([str(x) for x in input_mask]))
-                logger.info(
-                    "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-                if is_training:
-                    answer_text = " ".join(tokens[start_position:(end_position + 1)])
-                    logger.info("start_position: %d" % (start_position))
-                    logger.info("end_position: %d" % (end_position))
-                    logger.info(
-                        "answer: %s" % (answer_text))
+            # if example_index < 20:
+            #     logger.info("*** Example ***")
+            #     logger.info("unique_id: %s" % (unique_id))
+            #     logger.info("example_index: %s" % (example_index))
+            #     logger.info("doc_span_index: %s" % (doc_span_index))
+            #     logger.info("tokens: %s" % " ".join(tokens))
+            #     logger.info("token_to_orig_map: %s" % " ".join([
+            #         "%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]))
+            #     logger.info("token_is_max_context: %s" % " ".join([
+            #         "%d:%s" % (x, y) for (x, y) in token_is_max_context.items()
+            #     ]))
+            #     logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            #     logger.info(
+            #         "input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            #     logger.info(
+            #         "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            #     if is_training:
+            #         answer_text = " ".join(tokens[start_position:(end_position + 1)])
+            #         logger.info("start_position: %d" % (start_position))
+            #         logger.info("end_position: %d" % (end_position))
+            #         logger.info(
+            #             "answer: %s" % (answer_text))
 
             features.append(
                 InputFeatures(
@@ -573,13 +573,11 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
         # if not version_2_with_negative:
         all_predictions[example.qas_id] = nbest_json[0]["text"]
 
-        best_prob = 0
-        for candidate in nbest_json:
-            if candidate['probability'] > best_prob:
-                best_prob = candidate['probability']
-                best_ans = candidate['text']
+        sorted_nbest_json = sorted(nbest_json, key=lambda x: x['probability'], reverse=True)
+        top_5_answers = [answer['text'] for answer in sorted_nbest_json[:5]]
+        top_5_probs = [answer['probability'] for answer in sorted_nbest_json[:5]]
 
-        results.append((example.qas_id, example.question_text, example.orig_answer_text, best_ans, best_prob))
+        results.append((example.qas_id, example.question_text, example.orig_answer_text, top_5_answers, top_5_probs))
 
         # else:
         #     # predict "" iff the null score - the score of best non-null > threshold
@@ -592,7 +590,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
         #         all_predictions[example.qas_id] = best_non_null_entry.text
         # all_nbest_json[example.qas_id] = nbest_json
 
-    result_df = pd.DataFrame(results, columns=['question_id', 'question', 'ans', 'pred', 'probability'])
+    result_df = pd.DataFrame(results, columns=['question_id', 'question', 'gold', 'preds', 'probs'])
     result_df.to_pickle(output_prediction_file)
 
     # with open(output_prediction_file, "w") as writer:
